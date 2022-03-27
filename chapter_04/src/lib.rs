@@ -1,9 +1,7 @@
-use clap::{App, Arg, value_t};
+use clap::{App, Arg};
 use std::error::Error;
 use std::fs::File;
-//use std::io::{self, BufRead, BufReader};
-use std::io::IoSliceMut;
-use std::str::FromStr;
+use std::io::{self, BufRead, BufReader};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -30,47 +28,59 @@ pub fn get_args() -> MyResult<Config> {
             Arg::with_name("lines")
                 .short("n")
                 .long("lines")
+                .value_name("LINES")
                 .help("print the first K lines instead of the first 10;\nwith the leading '-', print all but the last\nK lines of each file")
-                .takes_value(true)
-                .multiple(false)
                 .default_value("10"),
         )
         .arg(
             Arg::with_name("bytes")
                 .short("c")
                 .long("bytes")
+                .value_name("BYTES")
                 .help("print the first K bytes of each file;\nwith the leading '-', print all but the last\nK bytes of each file")
                 .takes_value(true)
-                .multiple(false)
                 .conflicts_with("lines"),
         )
         .get_matches();
 
+    let lines = matches
+        .value_of("lines")
+        .map(parse_positive_int)
+        .transpose()
+        .map_err(|e| format!("illegal line count -- {}", e))?;
+
+    let bytes = matches
+        .value_of("bytes")
+        .map(parse_positive_int)
+        .transpose()
+        .map_err(|e| format!("illegal byte count -- {}", e))?;
+
     Ok(Config {
         files: matches.values_of_lossy("files").unwrap(),
-        lines: usize::from_str(matches.value_of("lines").unwrap()).unwrap(),
-        bytes: Some(usize::from_str(matches.value_of("bytes").unwrap_or_default()).unwrap_or_default()),
+        lines: lines.unwrap(),
+        bytes
     })
 }
 
+fn parse_positive_int(val: &str) -> MyResult<usize> {
+    match val.parse() {
+        Ok(n) if n > 0 => Ok(n),
+        _ => Err(From::from(val)),
+    }
+}
+
+fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
+    match filename {
+        "-" => Ok(Box::new(BufReader::new(io::stdin()))),
+        _ => Ok(Box::new(BufReader::new(File::open(filename)?))),
+    }
+}
+
 pub fn run(config: Config) -> MyResult<()> {
-    println!("{:#?}", config);
     for filename in config.files {
-        match File::open(&filename) {
-            Err(err) => eprintln!("Failed to open {}: {}", filename, err),
-            Ok(file) => {
-                if Some(config.bytes.unwrap()) {
-                    let metadata = file.metadata()?;
-                    let file_length: usize = metadata.len() as usize;
-                    let buffer_size = match bytes.unwrap() > file_length {
-                        true => config.bytes.unwrap(),
-                        false => config.bytes.unwrap(),
-                    };
-                    let mut buffer = [0; buffer_size];
-                    let contents = file.read_exact(&mut buffer)?;
-                    println!("{:#?}", contents);
-                }
-            }
+        match open(&filename) {
+            Err(err) => eprintln!("{}: {}", filename, err),
+            Ok(_) => println!("Opened {}", filename),
         }
     }
     Ok(())
