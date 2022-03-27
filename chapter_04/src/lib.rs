@@ -77,10 +77,25 @@ fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
 }
 
 pub fn run(config: Config) -> MyResult<()> {
+    let num_files = config.files.len();
+
     for filename in config.files {
         match open(&filename) {
             Err(err) => eprintln!("{}: {}", filename, err),
-            Ok(_) => println!("Opened {}", filename),
+            Ok(buf) => {
+                if num_files > 1 {
+                    println!("==> {} <==", filename);
+                }
+                match config.bytes {
+                    Some(bytes) => println!("You specified how many bytes to read?"),
+                    None => {
+                        for each_line in buf.lines().take(config.lines) {
+                            let each_line = each_line?;
+                            print!("{}", each_line);
+                        }
+                    },
+                }
+            },
         }
     }
     Ok(())
