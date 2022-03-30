@@ -1,7 +1,7 @@
 use clap::{App, Arg};
 use std::error::Error;
-use std::fs::File;
-use std::io::{self, BufRead, BufReader, Read};
+use std::fs::{File};
+use std::io::{self, BufRead, BufReader, Lines, Read};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -110,17 +110,11 @@ pub fn run(config: Config) -> MyResult<()> {
                 let mut file_words = 0;
                 let mut file_chars = 0;
                 let mut file_bytes = 0;
-                let mut line = String::new();
-                for _ in 0..file.len() {
-                    let bytes = file.read_line(&mut line)?;
-                    if bytes == 0 {
-                        break;
-                    }
+                for line in file.lines() {
                     file_lines += 1;
-                    file_words += line.split_whitespace().collect().len();
-                    file_chars += line.chars().collect().len();
-                    file_bytes += line.len();
-                    line.clear();
+                    file_words += line.unwrap().split_whitespace().collect().len();
+                    file_chars += line.unwrap().chars().collect().len();
+                    file_bytes += line.unwrap().len();
                 }
                 print_stats(config, file_lines, file_words, file_chars, file_bytes);
                 total_lines += file_lines;
