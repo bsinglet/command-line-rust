@@ -14,6 +14,14 @@ pub struct Config {
     chars: bool,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct FileInfo {
+    num_lines: usize,
+    num_words: usize,
+    num_bytes: usize,
+    num_chars: usize,
+}
+
 pub fn get_args() -> MyResult<Config> {
     let matches = App::new("wcr")
         .version("0.1.0")
@@ -75,23 +83,57 @@ pub fn get_args() -> MyResult<Config> {
     })
 }
 
-pub fn print_stats(config: Config, lines: usize, words: usize, chars: usize, bytes: usize) {
-    match (config.lines, config.words, config.chars, config.bytes) {
-        (true, true, true, false) => println!("{} {} {}", lines, words, chars),
-        (true, true, false, true) => println!("{} {} {}", lines, words, bytes),
-        (true, false, true, false) => println!("{} \t {}", lines, chars),
-        (true, false, false, true) => println!("{} \t {}", lines, bytes),
-        (false, true, true, false) => println!("\t {} {}", words, chars),
-        (false, true, false, true) => println!("\t {} {}", words, bytes),
-        (false, false, true, false) => println!("\t \t {}", words),
-        (false, false, false, true) => println!("\t \t {}", bytes),
-    }
-}
-
 fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
     match filename {
         "-" => Ok(Box::new(BufReader::new(io::stdin()))),
         _ => Ok(Box::new(BufReader::new(File::open(filename)?))),
+    }
+}
+
+pub fn count(mut file: impl BufRead) -> MyResult<FileInfo> {
+    let mut num_lines = 0;
+    let mut num_words = 0;
+    let mut num_bytes = 0;
+    let mut num_chars = 0;
+    let mut line = String::new();
+
+    loop {
+        let line_bytes = file.read_line(&mut line)?;
+        if line_bytes == 0 {
+            break;
+        }
+        num_bytes += line_bytes;
+        num_lines += 1;
+        num_words += line.split_whitespace().count();
+        num_chars += line.chars().count();
+        line.clear();
+    }
+
+    Ok(FileInfo {
+        num_lines,
+        num_words,
+        num_bytes,
+        num_chars,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{count, FileInfo};
+    use std::io::Cursor;
+
+    #[test]
+    fn test_count() {
+        let text = "I don't want the world. I just want your half.\r\n";
+        let info = count(Cursor::new(text));
+        assert!(info.is_ok());
+        let expected = FileInfo {
+            num_lines: 1,
+            num_words: 10,
+            num_chars: 48,
+            num_bytes: 48,
+        };
+        assert_eq!(info.unwrap(), expected);
     }
 }
 
@@ -105,21 +147,7 @@ pub fn run(config: Config) -> MyResult<()> {
         match open(&filename) {
             Err(err) => eprintln!("{}: {}", filename, err),
             Ok(mut file) => {
-                let mut file_lines = 0;
-                let mut file_words = 0;
-                let mut file_chars = 0;
-                let mut file_bytes = 0;
-                for line in file.lines() {
-                    file_lines += 1;
-                    file_words += line.unwrap().split_whitespace().collect().len();
-                    file_chars += line.unwrap().chars().collect().len();
-                    file_bytes += line.unwrap().len();
-                }
-                print_stats(config, file_lines, file_words, file_chars, file_bytes);
-                total_lines += file_lines;
-                total_words += file_words;
-                total_chars += file_chars;
-                total_bytes += file_bytes;
+                let file_info = count(file);
             }
         }
     }
