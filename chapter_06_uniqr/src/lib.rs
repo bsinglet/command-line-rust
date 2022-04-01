@@ -49,16 +49,26 @@ pub fn get_args() -> MyResult<Config> {
 }
 
 pub fn run(config: Config) -> MyResult<()> {
-    //println!("{:?}", config);
     let mut unique_lines: Vec<String> = Vec::new();
     let mut line_counts: Vec<i32> = Vec::new();
-    let mut previous_line: String = "".to_string();
+    let mut previous_line = String::new();
     let mut line = String::new();
     let mut current_count = -1;
 
     let mut out_file: Box<dyn Write> = match &config.out_file {
         Some(out_name) => Box::new(File::create(out_name)?),
         _ => Box::new(io::stdout()),
+    };
+
+    let mut my_write = |count: i32, text: &str| -> MyResult<()> {
+        if count > 0 {
+            if config.count {
+                write!(out_file, "{:>4} {}", count, text)?;
+            } else {
+                write!(out_file, "{}", text)?;
+            }
+        };
+        Ok(())
     };
 
     match open(&config.in_file) {
@@ -74,7 +84,7 @@ pub fn run(config: Config) -> MyResult<()> {
                 if current_count == -1 {
                     previous_line = line.clone();
                     current_count = 1;
-                } else if line != previous_line {
+                } else if line.trim_end() != previous_line.trim_end() {
                     unique_lines.push(previous_line);
                     // store the count of the previous line
                     line_counts.push(current_count);
@@ -91,13 +101,10 @@ pub fn run(config: Config) -> MyResult<()> {
             }
 
             for line_number in 0..unique_lines.len() {
-                if config.count {
-                    write!(out_file, "{} {}",
-                        format!("{:>4}", line_counts[line_number]),
-                        unique_lines[line_number]);
-                } else {
-                    write!(out_file, "{}", unique_lines[line_number]);
-                }
+                my_write(
+                    line_counts[line_number],
+                    &unique_lines[line_number]
+                )?;
             }
         }
     };
