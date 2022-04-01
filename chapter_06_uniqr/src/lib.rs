@@ -78,7 +78,7 @@ pub fn run(config: Config) -> MyResult<()> {
             for line_number in 0..unique_lines.len() {
                 if config.count {
                     println!("{} {}",
-                        format!("{:>7}", line_counts[line_number]),
+                        format!("{:>4}", line_counts[line_number]),
                         unique_lines[line_number]);
                 } else {
                     println!("{}", unique_lines[line_number]);
