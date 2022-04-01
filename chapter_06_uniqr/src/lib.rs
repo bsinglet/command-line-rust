@@ -12,6 +12,7 @@ pub struct Config {
     count: bool,
     repeated: bool,
     unique: bool,
+    skip_fields: usize,
 }
 
 pub fn get_args() -> MyResult<Config> {
@@ -52,7 +53,21 @@ pub fn get_args() -> MyResult<Config> {
                 .takes_value(false)
                 .conflicts_with("repeated"),
         )
+        .arg(
+            Arg::with_name("skip-fields")
+                .short("f")
+                .long("skip-fields")
+                .value_name("skip-fields")
+                .help("Skip the first N fields")
+                .default_value("0"),
+        )
         .get_matches();
+
+    let skip_fields = matches
+        .value_of("skip-fields")
+        .map(parse_positive_int)
+        .transpose()
+        .map_err(|e| format!("illegal field count -- {}", e))?;
 
     Ok(Config {
         // there are four different ways to do this, all of them equally good:
@@ -64,6 +79,7 @@ pub fn get_args() -> MyResult<Config> {
         count: matches.is_present("count"),
         repeated: matches.is_present("repeated"),
         unique: matches.is_present("unique"),
+        skip_fields: skip_fields.unwrap(),
     })
 }
 
@@ -105,6 +121,14 @@ pub fn run(config: Config) -> MyResult<()> {
             previous_line = line.clone();
             current_count = 1;
         // line uniqueness doesn't depend on line endings, even though we have to preserve them in the output.
+        } else if config.skip_fields > 0 {
+            if line.split_whitespace().skip(config.skip_fields).collect::<String>().trim_end() != previous_line.split_whitespace().skip(config.skip_fields).collect::<String>().trim_end() {
+                unique_lines.push(previous_line);
+                // store the count of the previous line
+                line_counts.push(current_count);
+                previous_line = line.clone();
+                current_count = 1;
+            }
         } else if line.trim_end() != previous_line.trim_end() {
             unique_lines.push(previous_line);
             // store the count of the previous line
@@ -149,5 +173,12 @@ fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
     match filename {
         "-" => Ok(Box::new(BufReader::new(io::stdin()))),
         _ => Ok(Box::new(BufReader::new(File::open(filename)?))),
+    }
+}
+
+fn parse_positive_int(val: &str) -> MyResult<usize> {
+    match val.parse() {
+        Ok(n) if n >= 0 => Ok(n),
+        _ => Err(From::from(val)),
     }
 }
