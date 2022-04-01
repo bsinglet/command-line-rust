@@ -10,6 +10,8 @@ pub struct Config {
     in_file: String,
     out_file: Option<String>,
     count: bool,
+    repeated: bool,
+    unique: bool,
 }
 
 pub fn get_args() -> MyResult<Config> {
@@ -35,6 +37,21 @@ pub fn get_args() -> MyResult<Config> {
                 .help("Show counts")
                 .takes_value(false),
         )
+        .arg(
+            Arg::with_name("repeated")
+                .short("d")
+                .long("repeated")
+                .help("Only show repeated lines")
+                .takes_value(false),
+        )
+        .arg(
+            Arg::with_name("unique")
+                .short("u")
+                .long("unique")
+                .help("Only show unique lines")
+                .takes_value(false)
+                .conflicts_with("repeated"),
+        )
         .get_matches();
 
     Ok(Config {
@@ -44,7 +61,9 @@ pub fn get_args() -> MyResult<Config> {
         //in_file: matches.value_of_lossy("in_file").map(|v| v.into()).unwrap(),
         in_file: matches.value_of_lossy("in_file").map(Into::into).unwrap(),
         out_file: matches.value_of("out_file").map(|v| v.to_string()),
-        count: matches.is_present("count")
+        count: matches.is_present("count"),
+        repeated: matches.is_present("repeated"),
+        unique: matches.is_present("unique"),
     })
 }
 
@@ -105,6 +124,17 @@ pub fn run(config: Config) -> MyResult<()> {
 
     // write out the unique lines, with frequency counts if necessary
     for line_number in 0..unique_lines.len() {
+        // with --repeated, only show lines that appeared 2 or more times in a row
+        if config.repeated {
+            if line_counts[line_number] < 2 {
+                continue;
+            }
+        // with --unique, only show lines that appeared once in a row
+        } else if config.unique {
+            if line_counts[line_number] != 1 {
+                continue;
+            }
+        }
         my_write(
             line_counts[line_number],
             &unique_lines[line_number]
