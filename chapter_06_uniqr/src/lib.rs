@@ -53,7 +53,7 @@ pub fn run(config: Config) -> MyResult<()> {
     let mut unique_lines: Vec<String> = Vec::new();
     let mut line_counts: Vec<i32> = Vec::new();
     let mut previous_line: String = "".to_string();
-    let mut current_count = 0;
+    let mut current_count = -1;
 
     let mut out_file: Box<dyn Write> = match &config.out_file {
         Some(out_name) => Box::new(File::create(out_name)?),
@@ -65,21 +65,23 @@ pub fn run(config: Config) -> MyResult<()> {
         Ok(file) => {
             for each_line in file.lines() {
                 let line = each_line.unwrap();
-                if previous_line == "" {
+                if current_count == -1 {
                     previous_line = line.clone();
                     current_count = 1;
                 } else if line != previous_line {
                     unique_lines.push(previous_line);
-                    previous_line = line.clone();
                     // store the count of the previous line
                     line_counts.push(current_count);
+                    previous_line = line.clone();
                     current_count = 1;
                 } else {
                     current_count += 1;
                 }
             }
-            unique_lines.push(previous_line);
-            line_counts.push(current_count);
+            if current_count > -1 {
+                unique_lines.push(previous_line);
+                line_counts.push(current_count);
+            }
 
             for line_number in 0..unique_lines.len() {
                 if config.count {
