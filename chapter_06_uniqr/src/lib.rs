@@ -1,7 +1,7 @@
 use clap::{App, Arg};
 use std::error::Error;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Write};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -54,6 +54,12 @@ pub fn run(config: Config) -> MyResult<()> {
     let mut line_counts: Vec<i32> = Vec::new();
     let mut previous_line: String = "".to_string();
     let mut current_count = 0;
+
+    let mut out_file: Box<dyn Write> = match &config.out_file {
+        Some(out_name) => Box::new(File::create(out_name)?),
+        _ => Box::new(io::stdout()),
+    };
+
     match open(&config.in_file) {
         Err(err) => eprintln!("{}: {}", &config.in_file, err),
         Ok(file) => {
@@ -77,11 +83,11 @@ pub fn run(config: Config) -> MyResult<()> {
 
             for line_number in 0..unique_lines.len() {
                 if config.count {
-                    println!("{} {}",
+                    writeln!(out_file, "{} {}",
                         format!("{:>4}", line_counts[line_number]),
                         unique_lines[line_number]);
                 } else {
-                    println!("{}", unique_lines[line_number]);
+                    writeln!(out_file, "{}", unique_lines[line_number]);
                 }
             }
         }
