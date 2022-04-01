@@ -53,6 +53,7 @@ pub fn run(config: Config) -> MyResult<()> {
     let mut unique_lines: Vec<String> = Vec::new();
     let mut line_counts: Vec<i32> = Vec::new();
     let mut previous_line: String = "".to_string();
+    let mut line = String::new();
     let mut current_count = -1;
 
     let mut out_file: Box<dyn Write> = match &config.out_file {
@@ -62,9 +63,14 @@ pub fn run(config: Config) -> MyResult<()> {
 
     match open(&config.in_file) {
         Err(err) => eprintln!("{}: {}", &config.in_file, err),
-        Ok(file) => {
-            for each_line in file.lines() {
-                let line = each_line.unwrap();
+        Ok(mut file) => {
+            loop {
+                // read each raw line, including Windows or Linux line-endings
+                let bytes = file.read_line(&mut line)?;
+                if bytes == 0 {
+                    break;
+                }
+
                 if current_count == -1 {
                     previous_line = line.clone();
                     current_count = 1;
@@ -77,6 +83,7 @@ pub fn run(config: Config) -> MyResult<()> {
                 } else {
                     current_count += 1;
                 }
+                line.clear();
             }
             if current_count > -1 {
                 unique_lines.push(previous_line);
@@ -85,11 +92,11 @@ pub fn run(config: Config) -> MyResult<()> {
 
             for line_number in 0..unique_lines.len() {
                 if config.count {
-                    writeln!(out_file, "{} {}",
+                    write!(out_file, "{} {}",
                         format!("{:>4}", line_counts[line_number]),
                         unique_lines[line_number]);
                 } else {
-                    writeln!(out_file, "{}", unique_lines[line_number]);
+                    write!(out_file, "{}", unique_lines[line_number]);
                 }
             }
         }
