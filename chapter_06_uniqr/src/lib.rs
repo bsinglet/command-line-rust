@@ -55,6 +55,9 @@ pub fn run(config: Config) -> MyResult<()> {
     let mut line = String::new();
     let mut current_count = -1;
 
+    let mut file = open(&config.in_file)
+        .map_err(|e| format!("{}: {}", config.in_file, e))?;
+
     let mut out_file: Box<dyn Write> = match &config.out_file {
         Some(out_name) => Box::new(File::create(out_name)?),
         _ => Box::new(io::stdout()),
@@ -71,43 +74,42 @@ pub fn run(config: Config) -> MyResult<()> {
         Ok(())
     };
 
-    match open(&config.in_file) {
-        Err(err) => eprintln!("{}: {}", &config.in_file, err),
-        Ok(mut file) => {
-            loop {
-                // read each raw line, including Windows or Linux line-endings
-                let bytes = file.read_line(&mut line)?;
-                if bytes == 0 {
-                    break;
-                }
-
-                if current_count == -1 {
-                    previous_line = line.clone();
-                    current_count = 1;
-                } else if line.trim_end() != previous_line.trim_end() {
-                    unique_lines.push(previous_line);
-                    // store the count of the previous line
-                    line_counts.push(current_count);
-                    previous_line = line.clone();
-                    current_count = 1;
-                } else {
-                    current_count += 1;
-                }
-                line.clear();
-            }
-            if current_count > -1 {
-                unique_lines.push(previous_line);
-                line_counts.push(current_count);
-            }
-
-            for line_number in 0..unique_lines.len() {
-                my_write(
-                    line_counts[line_number],
-                    &unique_lines[line_number]
-                )?;
-            }
+    loop {
+        // read each raw line, including Windows or Linux line-endings
+        let bytes = file.read_line(&mut line)?;
+        if bytes == 0 {
+            break;
         }
-    };
+
+        // if this is the first line of the file, we have to initialize it this way
+        if current_count == -1 {
+            previous_line = line.clone();
+            current_count = 1;
+        // line uniqueness doesn't depend on line endings, even though we have to preserve them in the output.
+        } else if line.trim_end() != previous_line.trim_end() {
+            unique_lines.push(previous_line);
+            // store the count of the previous line
+            line_counts.push(current_count);
+            previous_line = line.clone();
+            current_count = 1;
+        } else {
+            current_count += 1;
+        }
+            line.clear();
+    }
+    // store the count of the final repeating line, as long as the entire file isn't empty
+    if current_count > -1 {
+        unique_lines.push(previous_line);
+        line_counts.push(current_count);
+    }
+
+    // write out the unique lines, with frequency counts if necessary
+    for line_number in 0..unique_lines.len() {
+        my_write(
+            line_counts[line_number],
+            &unique_lines[line_number]
+        )?;
+    }
 
     Ok(())
 }
