@@ -1,5 +1,6 @@
 use crate::EntryType::*;
 use clap::{App, Arg};
+use walkdir::WalkDir;
 use regex::Regex;
 use std::error::Error;
 
@@ -93,6 +94,13 @@ pub fn get_args() -> MyResult<Config> {
 }
 
 pub fn run(config: Config) -> MyResult<()> {
-    println!("{:?}", config);
+    for path in config.paths {
+        for entry in WalkDir::new(path) {
+            match entry {
+                Err(e) => eprintln!("{}", e),
+                Ok(entry) => println!("{}", entry.path().display()),
+            }
+        }
+    }
     Ok(())
 }
