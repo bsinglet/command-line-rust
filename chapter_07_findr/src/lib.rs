@@ -24,13 +24,71 @@ pub fn get_args() -> MyResult<Config> {
         .version("0.1.0")
         .author("Ken Youens-Clark <kyclark@gmail.com>")
         .about("Rust find")
-        // What goes here?
+        .arg(
+            Arg::with_name("paths")
+                .value_name("PATH")
+                .help("Search paths")
+                .default_value(".")
+                .multiple(true),
+        )
+        .arg(
+            Arg::with_name("names")
+                .value_name("NAME")
+                .short("n")
+                .long("name")
+                .help("Name")
+                .takes_value(true)
+                .multiple(true),
+        )
+        .arg(
+            Arg::with_name("types")
+                .value_name("TYPE")
+                .short("t")
+                .long("type")
+                .help("Entry type")
+                .possible_values(&["f", "d", "l"])
+                .multiple(true)
+                .takes_value(true),
+        )
         .get_matches();
 
+    let names = matches
+        .values_of_lossy("names")
+        // Options::map will only be used if names are provided
+        .map(|vals| {
+            vals.into_iter()
+                .map(|name| {
+                    // try to turn each filename pattern into a valid regex
+                    Regex::new(&name)
+                        .map_err(|_| format!("Invalid --name \"{}\"", name))
+                        })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        // Turn the Option(Result) into a Result(Option)
+        .transpose()?
+        // unwrap the Result, or return an empty vector
+        .unwrap_or_default();
+
+    let entry_types = matches
+        .values_of_lossy("types")
+        .map(|vals| {
+            vals.iter()
+                .map(|val| match val.as_str() {
+                    "d" => Dir,
+                    "f" => File,
+                    "l" => Link,
+                    // clap will already prevent this, but Rust insists that matches covers
+                    // every outcome
+                    _ => unreachable!("Invalid type"),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
     Ok(Config {
-        paths: Vec::new(),
-        names: Vec::new(),
-        entry_types: Vec::new(),
+        paths: matches.values_of_lossy("paths").unwrap(),
+        names,
+        entry_types,
     })
 }
 
