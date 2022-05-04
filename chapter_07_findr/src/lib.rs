@@ -98,7 +98,14 @@ pub fn run(config: Config) -> MyResult<()> {
         for entry in WalkDir::new(path) {
             match entry {
                 Err(e) => eprintln!("{}", e),
-                Ok(entry) => println!("{}", entry.path().display()),
+                Ok(entry) => {
+                    for each_name in &config.names {
+                        if !each_name.find(entry.file_name().to_str().unwrap()).is_none() {
+                            println!("{}", entry.path().display());
+                            break;
+                        }
+                    }
+                },
             }
         }
     }
