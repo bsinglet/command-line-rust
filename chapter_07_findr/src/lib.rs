@@ -1,6 +1,7 @@
 use crate::EntryType::*;
 use clap::{App, Arg};
 use walkdir::WalkDir;
+use std::fs::FileType;
 use regex::Regex;
 use std::error::Error;
 
@@ -93,6 +94,17 @@ pub fn get_args() -> MyResult<Config> {
     })
 }
 
+
+fn convert_file_type(file_type: FileType) -> EntryType {
+    if file_type.is_dir() {
+        return EntryType::Dir;
+    } else if file_type.is_symlink() {
+        return EntryType::Link;
+    } else {
+        return EntryType::File;
+    }
+}
+
 pub fn run(config: Config) -> MyResult<()> {
     for path in config.paths {
         for entry in WalkDir::new(path) {
@@ -100,12 +112,24 @@ pub fn run(config: Config) -> MyResult<()> {
                 Err(e) => eprintln!("{}", e),
                 Ok(entry) => {
                     if config.names.len() == 0 {
-                        println!("{}", entry.path().display());
+                        if config.entry_types.len() == 0 {
+                            println!("{}", entry.path().display());
+                        } else {
+                            if config.entry_types.contains(&convert_file_type(entry.file_type())) {
+                                println!("{}", entry.path().display());
+                            }
+                        }
                     } else {
                         for each_name in &config.names {
                             if !each_name.find(entry.file_name().to_str().unwrap()).is_none() {
-                                println!("{}", entry.path().display());
-                                break;
+                                // check if it's the right type, if relevant
+                                if config.entry_types.len() == 0 {
+                                    println!("{}", entry.path().display());
+                                }else {
+                                    if config.entry_types.contains(&convert_file_type(entry.file_type())) {
+                                        println!("{}", entry.path().display());
+                                    }
+                                }
                             }
                         }
                     }
