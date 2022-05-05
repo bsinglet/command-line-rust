@@ -99,10 +99,14 @@ pub fn run(config: Config) -> MyResult<()> {
             match entry {
                 Err(e) => eprintln!("{}", e),
                 Ok(entry) => {
-                    for each_name in &config.names {
-                        if !each_name.find(entry.file_name().to_str().unwrap()).is_none() {
-                            println!("{}", entry.path().display());
-                            break;
+                    if config.names.len() == 0 {
+                        println!("{}", entry.path().display());
+                    } else {
+                        for each_name in &config.names {
+                            if !each_name.find(entry.file_name().to_str().unwrap()).is_none() {
+                                println!("{}", entry.path().display());
+                                break;
+                            }
                         }
                     }
                 },
