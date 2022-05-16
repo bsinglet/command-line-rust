@@ -1,6 +1,6 @@
 use crate::EntryType::*;
 use clap::{App, Arg};
-use walkdir::WalkDir;
+use walkdir::{DirEntry, WalkDir};
 use std::fs::FileType;
 use regex::Regex;
 use std::error::Error;
@@ -106,36 +106,43 @@ fn convert_file_type(file_type: FileType) -> EntryType {
 }
 
 pub fn run(config: Config) -> MyResult<()> {
+    let type_filter = |entry: &DirEntry| {
+        config.entry_types.is_empty()
+            || config
+                .entry_types
+                .iter()
+                .any(|entry_type| match entry_type {
+                    Link => entry.file_type().is_symlink(),
+                    Dir => entry.file_type().is_dir(),
+                    File => entry.file_type().is_file(),
+                })
+    };
+
+    let name_filter = |entry: &DirEntry| {
+        config.names.is_empty()
+            || config
+                .names
+                .iter()
+                .any(|re| re.is_match(&entry.file_name().to_string_lossy()))
+    };
+
     for path in config.paths {
-        for entry in WalkDir::new(path) {
-            match entry {
-                Err(e) => eprintln!("{}", e),
-                Ok(entry) => {
-                    if config.names.len() == 0 {
-                        if config.entry_types.len() == 0 {
-                            println!("{}", entry.path().display());
-                        } else {
-                            if config.entry_types.contains(&convert_file_type(entry.file_type())) {
-                                println!("{}", entry.path().display());
-                            }
-                        }
-                    } else {
-                        for each_name in &config.names {
-                            if !each_name.find(entry.file_name().to_str().unwrap()).is_none() {
-                                // check if it's the right type, if relevant
-                                if config.entry_types.len() == 0 {
-                                    println!("{}", entry.path().display());
-                                }else {
-                                    if config.entry_types.contains(&convert_file_type(entry.file_type())) {
-                                        println!("{}", entry.path().display());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-            }
-        }
+        let entries = WalkDir::new(path)
+            .into_iter()
+            .filter_map(|e| match e {
+                Err(e) => {
+                    eprintln!("{}", e);
+                    None
+                }
+                Ok(entry) => Some(entry),
+            })
+            .filter(type_filter)
+            .filter(name_filter)
+            .map(|entry| entry.path().display().to_string())
+            .collect::<Vec<_>>();
+
+        println!("{}", entries.join("\n"));
     }
+
     Ok(())
 }
